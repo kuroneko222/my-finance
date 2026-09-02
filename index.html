@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- iPhoneでアプリのように表示するための設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="収支管理">
+  <link rel="apple-touch-icon" href="https://placehold.co/192x192/4F46E5/FFFFFF?text=FT">
+  <link rel="manifest" href="manifest.json">
+  <title>Finance Tracker</title>
+
+  <!-- Tailwind CSS, React, Babelの読み込み -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+  <style>
+    body { background-color: #f8fafc; font-family: 'Helvetica Neue', Arial, sans-serif; }
+    /* iOSのセーフエリア（ノッチ等）対応 */
+    .safe-padding-top { padding-top: env(safe-area-inset-top); }
+    .safe-padding-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      // --- 初期データの読み込み (localStorageから) ---
+      const loadInitialData = () => {
+        const saved = localStorage.getItem('financeTrackerDataDirect');
+        if (saved) return JSON.parse(saved);
+        
+        // サンプルデータ
+        return [
+          { id: '1', type: 'income', category: '給与', title: '給与', amount: 320000, date: '2026-09-25' },
+          { id: '2', type: 'fixed', category: '家賃', title: '家賃', amount: 85000, date: '2026-09-27' },
+          { id: '3', type: 'subscription', category: 'サブスク', title: 'Netflix', amount: 1490, date: '2026-09-10' },
+          { id: '5', type: 'bill', category: '支払い', title: '楽天カード引き落とし', amount: 45000, date: '2026-09-27', isPaid: false },
+        ];
+      };
+
+      const [transactions, setTransactions] = useState(loadInitialData);
+      const [activeTab, setActiveTab] = useState('all'); // all, bills, fixed, subs
+      const [showAddForm, setShowAddForm] = useState(false);
+      const [addType, setAddType] = useState('bill'); // income, fixed, subscription, bill
+
+      // --- データの保存 (localStorageへ) ---
+      useEffect(() => {
+        localStorage.setItem('financeTrackerDataDirect', JSON.stringify(transactions));
+      }, [transactions]);
+
+      // --- フォームの状態 ---
+      const [formData, setFormData] = useState({ title: '', amount: '', date: '' });
+
+      // --- 各種計算 ---
+      const incomeTotal = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+      const expenseTotal = transactions.filter(t => t.type !== 'income').reduce((sum, t) => sum + t.amount, 0);
+      const balance = incomeTotal - expenseTotal;
+
+      // 日付から残り日数を計算する関数
+      const getDaysRemaining = (dateString) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const targetDate = new Date(dateString);
+        targetDate.setHours(0, 0, 0, 0);
+        const diffTime = targetDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+      };
+
+      // --- 処理関数 ---
+      const togglePaidStatus = (id) => {
+        setTransactions(transactions.map(t => 
+          t.id === id ? { ...t, isPaid: !t.isPaid } : t
+        ));
+      };
+
+      const deleteTransaction = (id) => {
+        if(confirm('本当に削除しますか？')) {
+          setTransactions(transactions.filter(t => t.id !== id));
+        }
+      };
+
+      const handleAddSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.title || !formData.amount || !formData.date) {
+            alert('すべての項目を入力してください');
+            return;
+        }
+
+        const newItem = {
+          id: Date.now().toString(),
+          type: addType,
+          category: addType === 'income' ? '収入' : addType === 'fixed' ? '固定費' : addType === 'subscription' ? 'サブスク' : '支払い',
+          title: formData.title,
+          amount: parseInt(formData.amount, 10),
+          date: formData.date,
+          isPaid: false
+        };
+
+        setTransactions([...transactions, newItem]);
+        setFormData({ title: '', amount: '', date: '' });
+        setShowAddForm(false);
+      };
+
+      // --- アイコン・色設定 ---
+      const typeConfig = {
+        income: { icon: '💰', color: 'text-blue-600', bg: 'bg-blue-100' },
+        fixed: { icon: '🏠', color: 'text-orange-600', bg: 'bg-orange-100' },
+        subscription: { icon: '🎬', color: 'text-purple-600', bg: 'bg-purple-100' },
+        bill: { icon: '💳', color: 'text-red-600', bg: 'bg-red-100' }
+      };
+
+      // --- フィルタリング ---
+      const filteredTransactions = transactions.filter(t => {
+        if (activeTab === 'all') return true;
+        if (activeTab === 'bills') return t.type === 'bill';
+        if (activeTab === 'fixed') return t.type === 'fixed';
+        if (activeTab === 'subs') return t.type === 'subscription';
+        return true;
+      }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      return (
+        <div className="min-h-screen pb-20 safe-padding-top">
+          {/* ヘッダー＆ダッシュボード */}
+          <div className="bg-indigo-600 text-white p-6 rounded-b-3xl shadow-md">
+            <h1 className="text-2xl font-bold mb-4 text-center">Finance Tracker</h1>
+            <div className="bg-white/20 rounded-xl p-4 backdrop-blur-sm">
+              <p className="text-sm opacity-80 text-center">今月の残高予測</p>
+              <h2 className="text-4xl font-bold text-center my-2">¥{balance.toLocaleString()}</h2>
+              <div className="flex justify-between mt-4 text-sm">
+                <div>
+                  <p className="opacity-80">収入</p>
+                  <p className="font-semibold text-blue-200">+¥{incomeTotal.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="opacity-80">支出（予定含む）</p>
+                  <p className="font-semibold text-red-200">-¥{expenseTotal.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* メインコンテンツ */}
+          <div className="p-4 max-w-lg mx-auto">
+            {/* 追加ボタン群 */}
+            <div className="grid grid-cols-4 gap-2 mb-6">
+              {[
+                { id: 'income', label: '収入', icon: '💰', color: 'bg-blue-100 text-blue-700' },
+                { id: 'fixed', label: '固定費', icon: '🏠', color: 'bg-orange-100 text-orange-700' },
+                { id: 'subscription', label: 'サブスク', icon: '🎬', color: 'bg-purple-100 text-purple-700' },
+                { id: 'bill', label: '期日支払', icon: '💳', color: 'bg-red-100 text-red-700' }
+              ].map(btn => (
+                <button 
+                  key={btn.id}
+                  onClick={() => { setAddType(btn.id); setShowAddForm(true); }}
+                  className={`${btn.color} rounded-xl p-2 flex flex-col items-center justify-center shadow-sm active:scale-95 transition-transform`}
+                >
+                  <span className="text-xl mb-1">{btn.icon}</span>
+                  <span className="text-[10px] font-bold">{btn.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* タブ */}
+            <div className="flex space-x-2 overflow-x-auto mb-4 pb-2 hide-scrollbar">
+              {[
+                { id: 'all', label: 'すべて' },
+                { id: 'bills', label: '期日払い' },
+                { id: 'fixed', label: '固定費' },
+                { id: 'subs', label: 'サブスク' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                    activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* リスト表示 */}
+            <div className="space-y-3">
+              {filteredTransactions.map(item => {
+                const config = typeConfig[item.type];
+                const daysLeft = getDaysRemaining(item.date);
+                const isOverdue = daysLeft < 0 && !item.isPaid;
+                
+                return (
+                  <div key={item.id} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${item.isPaid ? 'border-gray-300 opacity-60' : 'border-indigo-500'} flex items-center justify-between transition-opacity`}>
+                    <div className="flex items-center space-x-4">
+                      {/* 支払い完了チェックボタン (収入以外) */}
+                      {item.type !== 'income' ? (
+                        <button 
+                          onClick={() => togglePaidStatus(item.id)}
+                          className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.isPaid ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-gray-300 text-transparent'}`}
+                        >
+                          ✓
+                        </button>
+                      ) : (
+                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.bg} ${config.color}`}>
+                           {config.icon}
+                         </div>
+                      )}
+
+                      <div>
+                        <h3 className={`font-bold ${item.isPaid ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                          {item.title}
+                        </h3>
+                        <div className="flex items-center text-xs text-gray-500 mt-1 space-x-2">
+                          <span className={`px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
+                            {item.category}
+                          </span>
+                          <span>{new Date(item.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex flex-col items-end">
+                      <span className={`font-bold ${item.type === 'income' ? 'text-blue-600' : item.isPaid ? 'text-gray-500' : 'text-gray-800'}`}>
+                        {item.type === 'income' ? '+' : '-'}¥{item.amount.toLocaleString()}
+                      </span>
+                      
+                      {/* 期日バッジ */}
+                      {item.type === 'bill' && !item.isPaid && (
+                        <span className={`text-[10px] px-2 py-1 rounded mt-1 font-bold ${
+                          isOverdue ? 'bg-red-100 text-red-700' : 
+                          daysLeft === 0 ? 'bg-orange-100 text-orange-700' : 
+                          'bg-indigo-50 text-indigo-700'
+                        }`}>
+                          {isOverdue ? `${Math.abs(daysLeft)}日超過` : daysLeft === 0 ? '今日が期日' : `あと${daysLeft}日`}
+                        </span>
+                      )}
+                      
+                      {/* 削除ボタン */}
+                      <button onClick={() => deleteTransaction(item.id)} className="text-xs text-gray-300 mt-2 hover:text-red-500">
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredTransactions.length === 0 && (
+                <p className="text-center text-gray-400 mt-10">アイテムがありません</p>
+              )}
+            </div>
+          </div>
+
+          {/* 追加モーダル */}
+          {showAddForm && (
+            <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4 safe-padding-bottom">
+              <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold">
+                    {addType === 'income' ? '収入を追加' : addType === 'fixed' ? '固定費を追加' : addType === 'subscription' ? 'サブスクを追加' : '支払いを追加'}
+                  </h2>
+                  <button onClick={() => setShowAddForm(false)} className="text-gray-400 text-2xl font-bold">×</button>
+                </div>
+
+                <form onSubmit={handleAddSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">タイトル / 項目名</label>
+                    <input 
+                      type="text" 
+                      value={formData.title}
+                      onChange={e => setFormData({...formData, title: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="例: 家賃、給料、Netflix"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">金額 (円)</label>
+                    <input 
+                      type="number" 
+                      value={formData.amount}
+                      onChange={e => setFormData({...formData, amount: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">日付 / 期日</label>
+                    <input 
+                      type="date" 
+                      value={formData.date}
+                      onChange={e => setFormData({...formData, date: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 active:bg-indigo-700 transition-colors">
+                    保存する
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
