@@ -135,51 +135,15 @@
       const handleDelete = (id) => setTransactions(prev => prev.filter(t => t.id !== id));
 
       const handleTogglePaid = (id) => {
-        setTransactions(prev => prev.map(t => t.id === id ? { ...t, isPaid: !t.isPaid } : t));
+        setTransactions(prev => prev.map(t => {
+          if (t.id === id) {
+            return { ...t, isPaid: !t.isPaid };
+          }
+          return t;
+        }));
       };
 
-      const Modal = () => {
-        if (!isModalOpen) return null;
-        const titles = { income: '収入を追加', fixed: '固定費を追加', subscription: 'サブスクを追加', bill: '期日支払いを追加' };
-
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl animate-in">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">{titles[formData.type] || '追加'}</h2>
-                <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">種類</label>
-                  <select name="type" value={formData.type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="income">収入</option>
-                    <option value="fixed">固定費</option>
-                    <option value="subscription">サブスクリプション</option>
-                    <option value="bill">期日指定の支払い</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">項目名</label>
-                  <input type="text" name="title" required placeholder="例: 家賃、Netflix、電気代..." value={formData.title} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">金額 (円)</label>
-                  <input type="number" name="amount" required min="0" placeholder="0" value={formData.amount} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{formData.type === 'bill' ? '支払期日' : '発生日 / 引落日'}</label>
-                  <input type="date" name="date" required value={formData.date} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                </div>
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">キャンセル</button>
-                  <button type="submit" className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">保存する</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        );
-      };
+      const modalTitles = { income: '収入を追加', fixed: '固定費を追加', subscription: 'サブスクを追加', bill: '期日支払いを追加' };
 
       return (
         <div className="min-h-screen pb-24 md:pb-10">
@@ -309,7 +273,47 @@
               <Icons.Plus />
             </button>
           </div>
-          <Modal />
+          
+          {isModalOpen && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl animate-in">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-gray-800">{modalTitles[formData.type] || '追加'}</h2>
+                  <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">種類</label>
+                    <select name="type" value={formData.type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="income">収入</option>
+                      <option value="fixed">固定費</option>
+                      <option value="subscription">サブスクリプション</option>
+                      <option value="bill">期日指定の支払い</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">項目名</label>
+                    <input type="text" name="title" required placeholder="例: 家賃、Netflix、電気代..." value={formData.title} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">金額 (円)</label>
+                    <input type="number" name="amount" required min="0" placeholder="0" value={formData.amount} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {formData.type === 'bill' ? '支払期日' : '発生日 / 引落日'}
+                    </label>
+                    <input type="date" name="date" required value={formData.date} onChange={handleInputChange} className="w-full border border-gray-300 rounded-xl p-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">キャンセル</button>
+                    <button type="submit" className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">保存する</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
